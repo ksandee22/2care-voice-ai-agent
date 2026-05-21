@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2Care.ai Voice Agent Demo</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --accent: #38bdf8;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    h1 { margin: 0 0 0.5rem; font-size: 1.5rem; }
+    .subtitle { color: var(--muted); margin-bottom: 1.5rem; }
+    .grid { display: grid; gap: 1rem; max-width: 720px; }
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 1.25rem;
+      border: 1px solid #334155;
+    }
+    button {
+      background: var(--accent);
+      color: #0f172a;
+      border: none;
+      padding: 0.75rem 1.25rem;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-right: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.secondary { background: #475569; color: var(--text); }
+    #log {
+      font-family: ui-monospace, monospace;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+      max-height: 320px;
+      overflow-y: auto;
+      color: var(--muted);
+    }
+    .latency { color: #4ade80; }
+    input, select {
+      width: 100%;
+      padding: 0.6rem;
+      border-radius: 8px;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: var(--text);
+      margin-bottom: 0.75rem;
+    }
+    label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.25rem; }
+  </style>
+</head>
+<body>
+  <h1>2Care.ai Voice Agent</h1>
+  <p class="subtitle">Real-time appointment booking — English, Hindi, Tamil</p>
+
+  <div class="grid">
+    <div class="card">
+      <label>WebSocket URL</label>
+      <input id="wsUrl" value="" />
+      <label>Sample text (or use microphone)</label>
+      <input id="textInput" value="Book appointment with cardiologist tomorrow at 10:30 am" />
+      <label>Language hint (optional)</label>
+      <select id="langHint">
+        <option value="">Auto-detect</option>
+        <option value="en">English</option>
+        <option value="hi">Hindi</option>
+        <option value="ta">Tamil</option>
+      </select>
+      <button id="connectBtn">Connect</button>
+      <button id="sendTextBtn" disabled>Send Text</button>
+      <button id="recordBtn" disabled>Hold to Record</button>
+      <button id="outboundBtn" class="secondary" disabled>Simulate Outbound Call</button>
+    </div>
+    <div class="card">
+      <strong>Conversation</strong>
+      <div id="log">Not connected.</div>
+    </div>
+  </div>
+
+  <script>
+    const logEl = document.getElementById("log");
+    const wsUrlInput = document.getElementById("wsUrl");
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    wsUrlInput.value = `${proto}//${location.host}/ws/voice`;
+
+    let ws = null;
+    let mediaRecorder = null;
+    let chunks = [];
+
+    function log(msg, cls = "") {
+      const line = document.createElement("div");
+      if (cls) line.className = cls;
+      line.textContent = msg;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    document.getElementById("connectBtn").onclick = () => {
+      if (ws) ws.close();
+      ws = new WebSocket(wsUrlInput.value);
+      ws.onopen = () => {
+        log("Connected.");
+        document.getElementById("sendTextBtn").disabled = false;
+        document.getElementById("recordBtn").disabled = false;
+        document.getElementById("outboundBtn").disabled = false;
+      };
+      ws.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === "session") {
+          log(`Session: ${data.session_id}`);
+        } else if (data.type === "response") {
+          log(`You: ${data.transcript || "(audio)"}`);
+          log(`Agent (${data.language}): ${data.response_text}`);
+          if (data.latency) {
+            log(
+              `Latency: ${data.latency.first_audio_ms}ms (target <450ms) ${data.latency.target_met ? "✓" : "✗"}`,
+              "latency"
+            );
+          }
+          if (data.audio_base64) {
+            const audio = new Audio(`data:${data.audio_mime || "audio/mpeg"};base64,${data.audio_base64}`);
+            audio.play();
+          }
+        } else {
+          log(JSON.stringify(data));
+        }
+      };
+      ws.onclose = () => log("Disconnected.");
+      ws.onerror = () => log("WebSocket error.");
+    };
+
+    document.getElementById("sendTextBtn").onclick = () => {
+      const text = document.getElementById("textInput").value;
+      const lang = document.getElementById("langHint").value;
+      ws?.send(JSON.stringify({ type: "text", text, language: lang || undefined }));
+    };
+
+    document.getElementById("outboundBtn").onclick = () => {
+      const url = new URL(wsUrlInput.value);
+      url.searchParams.set("outbound", "true");
+      url.searchParams.set(
+        "campaign_message",
+        "Hello, this is a reminder about your appointment tomorrow at 10:30 AM with Dr. Sharma. Would you like to reschedule?"
+      );
+      if (ws) ws.close();
+      ws = new WebSocket(url.toString());
+      ws.onopen = () => log("Outbound campaign call connected.");
+      ws.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === "response") {
+          log(`Campaign → ${data.response_text}`);
+          if (data.latency) log(`Latency: ${data.latency.first_audio_ms}ms`, "latency");
+        }
+      };
+    };
+
+    const recordBtn = document.getElementById("recordBtn");
+    recordBtn.onmousedown = recordBtn.ontouchstart = async (e) => {
+      e.preventDefault();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      chunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = (ev) => chunks.push(ev.data);
+      mediaRecorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const buf = await blob.arrayBuffer();
+        const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+        ws?.send(JSON.stringify({ type: "audio", audio_base64: b64, mime_type: "audio/webm" }));
+        stream.getTracks().forEach((t) => t.stop());
+      };
+      mediaRecorder.start();
+      log("Recording...");
+    };
+    recordBtn.onmouseup = recordBtn.ontouchend = () => {
+      if (mediaRecorder?.state === "recording") mediaRecorder.stop();
+    };
+  </script>
+</body>
+</html>

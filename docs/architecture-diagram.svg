@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L10,3 L0,6 Z" fill="#334155"/>
+    </marker>
+  </defs>
+  <rect width="900" height="520" fill="#f8fafc"/>
+  <text x="450" y="36" text-anchor="middle" font-size="20" font-weight="bold" fill="#0f172a">2Care.ai Voice AI Agent Architecture</text>
+
+  <rect x="40" y="60" width="160" height="80" rx="8" fill="#dbeafe" stroke="#2563eb"/>
+  <text x="120" y="95" text-anchor="middle" font-size="13" fill="#1e3a8a">User Speech</text>
+  <text x="120" y="115" text-anchor="middle" font-size="11" fill="#1e40af">WebSocket</text>
+
+  <rect x="240" y="60" width="160" height="80" rx="8" fill="#e0e7ff" stroke="#4f46e5"/>
+  <text x="320" y="95" text-anchor="middle" font-size="13">STT (Whisper)</text>
+  <text x="320" y="115" text-anchor="middle" font-size="11">Language Detect</text>
+
+  <rect x="440" y="60" width="160" height="80" rx="8" fill="#fef3c7" stroke="#d97706"/>
+  <text x="520" y="95" text-anchor="middle" font-size="13">LLM Agent</text>
+  <text x="520" y="115" text-anchor="middle" font-size="11">Tool Orchestration</text>
+
+  <rect x="640" y="60" width="160" height="80" rx="8" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="720" y="95" text-anchor="middle" font-size="13">Appointment</text>
+  <text x="720" y="115" text-anchor="middle" font-size="11">Engine + DB</text>
+
+  <rect x="440" y="180" width="160" height="80" rx="8" fill="#fce7f3" stroke="#db2777"/>
+  <text x="520" y="215" text-anchor="middle" font-size="13">TTS</text>
+  <text x="520" y="235" text-anchor="middle" font-size="11">Audio Response</text>
+
+  <line x1="200" y1="100" x2="240" y2="100" stroke="#334155" marker-end="url(#arrow)"/>
+  <line x1="400" y1="100" x2="440" y2="100" stroke="#334155" marker-end="url(#arrow)"/>
+  <line x1="600" y1="100" x2="640" y2="100" stroke="#334155" marker-end="url(#arrow)"/>
+  <line x1="520" y1="140" x2="520" y2="180" stroke="#334155" marker-end="url(#arrow)"/>
+
+  <rect x="80" y="300" width="200" height="100" rx="8" fill="#fff" stroke="#64748b"/>
+  <text x="180" y="330" text-anchor="middle" font-size="13" font-weight="bold">Session Memory</text>
+  <text x="180" y="350" text-anchor="middle" font-size="11">Redis  context, intent</text>
+  <text x="180" y="370" text-anchor="middle" font-size="11">TTL 1 hour</text>
+
+  <rect x="350" y="300" width="200" height="100" rx="8" fill="#fff" stroke="#64748b"/>
+  <text x="450" y="330" text-anchor="middle" font-size="13" font-weight="bold">Persistent Memory</text>
+  <text x="450" y="350" text-anchor="middle" font-size="11">Redis  language, history</text>
+  <text x="450" y="370" text-anchor="middle" font-size="11">TTL 30 days</text>
+
+  <rect x="620" y="300" width="200" height="100" rx="8" fill="#fff" stroke="#64748b"/>
+  <text x="720" y="330" text-anchor="middle" font-size="13" font-weight="bold">Campaign Scheduler</text>
+  <text x="720" y="350" text-anchor="middle" font-size="11">Reminders, follow-ups</text>
+  <text x="720" y="370" text-anchor="middle" font-size="11">Outbound WebSocket</text>
+
+  <line x1="520" y1="260" x2="180" y2="300" stroke="#94a3b8" stroke-dasharray="4"/>
+  <line x1="520" y1="260" x2="450" y2="300" stroke="#94a3b8" stroke-dasharray="4"/>
+  <line x1="720" y1="140" x2="720" y2="300" stroke="#94a3b8" stroke-dasharray="4"/>
+
+  <rect x="200" y="440" width="500" height="50" rx="8" fill="#0f172a"/>
+  <text x="450" y="470" text-anchor="middle" font-size="12" fill="#f8fafc">Latency logged: speech_end ’ first_audio (target &lt; 450ms)</text>
+</svg>
