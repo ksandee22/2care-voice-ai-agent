@@ -38,6 +38,11 @@ async def _on_outbound_call(campaign):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    log = logging.getLogger(__name__)
+    if settings.use_mock:
+        log.info("AI mode: MOCK (no OpenAI calls). Set a valid OPENAI_API_KEY or MOCK_AI=false for production.")
+    else:
+        log.info("AI mode: OpenAI (STT + LLM + TTS)")
     session_memory = SessionMemory()
     persistent_memory = PersistentMemory()
     await session_memory.connect()

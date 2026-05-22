@@ -88,4 +88,10 @@ async def voice_websocket(websocket: WebSocket):
         logger.info("WebSocket disconnected session=%s", session_id)
     except Exception as e:
         logger.exception("WebSocket error: %s", e)
-        await websocket.send_json({"type": "error", "message": str(e)})
+        msg = str(e)
+        if "invalid_api_key" in msg or "Incorrect API key" in msg:
+            msg = (
+                "OpenAI API key is missing or invalid. On Render set MOCK_AI=true "
+                "or add a real OPENAI_API_KEY from https://platform.openai.com/api-keys"
+            )
+        await websocket.send_json({"type": "error", "message": msg})

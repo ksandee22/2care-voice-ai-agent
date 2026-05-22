@@ -2,6 +2,27 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Placeholder values often copied from .env.example or Render UI
+_INVALID_KEY_MARKERS = (
+    "your_key",
+    "your_openai_api_key",
+    "your-api-key",
+    "changeme",
+    "replace_me",
+    "xxx",
+    "placeholder",
+)
+
+
+def is_valid_openai_api_key(key: str | None) -> bool:
+    k = (key or "").strip()
+    if not k or len(k) < 20:
+        return False
+    lower = k.lower()
+    if any(marker in lower for marker in _INVALID_KEY_MARKERS):
+        return False
+    return k.startswith("sk-")
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -18,7 +39,9 @@ class Settings(BaseSettings):
 
     @property
     def use_mock(self) -> bool:
-        return self.mock_ai or not self.openai_api_key
+        if self.mock_ai:
+            return True
+        return not is_valid_openai_api_key(self.openai_api_key)
 
 
 @lru_cache
