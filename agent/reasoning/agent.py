@@ -12,6 +12,51 @@ from scheduler.slot_utils import parse_time_slot
 
 logger = logging.getLogger(__name__)
 
+_MSG = {
+    "book_ok": {
+        "en": "Booked with {doctor} on {date} at {time}.",
+        "hi": "{doctor} के साथ {date} को {time} बजे अपॉइंटमेंट बुक हो गई।",
+        "ta": "{doctor} உடன் {date} {time}க்கு சந்திப்பு பதிவு செய்யப்பட்டது.",
+    },
+    "conflict": {
+        "en": "That slot is already booked.",
+        "hi": "यह समय पहले से बुक है।",
+        "ta": "இந்த நேரம் ஏற்கனவே புக் செய்யப்பட்டுள்ளது.",
+    },
+    "try_slots": {
+        "en": " Try: {slots}",
+        "hi": " उपलब्ध समय: {slots}",
+        "ta": " கிடைக்கும் நேரம்: {slots}",
+    },
+    "no_slots": {
+        "en": "No slots available for that day.",
+        "hi": "उस दिन कोई समय उपलब्ध नहीं है।",
+        "ta": "அந்த நாளுக்கு நேரம் இல்லை.",
+    },
+}
+
+
+def _detect_specialty(text: str) -> str:
+    lower = text.lower()
+    if any(w in lower for w in ("cardio", "heart", "हृदय", "இதய")):
+        return "cardiologist"
+    if any(w in lower for w in ("derma", "skin", "त्वचा", "தோல்")):
+        return "dermatologist"
+    if any(w in lower for w in ("pediatric", "child", "बच्च", "குழந்தை")):
+        return "pediatrician"
+    return "general"
+
+
+def _detect_date(text: str) -> str:
+    if any(w in text for w in ("today", "आज", "இன்று")):
+        return "today"
+    return "tomorrow"
+
+
+def _format_reply(key: str, language: str, **kwargs) -> str:
+    template = _MSG.get(key, {}).get(language) or _MSG.get(key, {}).get("en", "")
+    return template.format(**kwargs) if template else ""
+
 
 class VoiceAgent:
     def __init__(self):
@@ -198,37 +243,7 @@ class VoiceAgent:
                 language, f"Slots: {slots}"
             )
         else:
-            book_args = {"specialty": "cardiologist", "date": "tomorrow", "time": "10:30 am"}
-            if "tomorrow" not in lower and ("today" in lower or "आज" in user_text):
-                book_args["date"] = "today"
-            parsed_time = parse_time_slot(user_text)
-            if not parsed_time:
-                import re
-
-                m = re.search(
-                    r"(\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{1,2}:\d{2})",
-                    user_text,
-                    re.IGNORECASE,
-                )
-                if m:
-                    parsed_time = parse_time_slot(m.group(1))
-            if parsed_time:
-                from scheduler.slot_utils import format_slot_display
-
-                book_args["time"] = format_slot_display(parsed_time)
-            result = await tools.execute("book_appointment", book_args)
-            if result.get("success"):
-                text = {
-                    "en": f"Booked with {result['doctor']} on {result['date']} at {result['time']}.",
-                    "hi": f"{result['doctor']} के साथ {result['date']} को {result['time']} बजे बुक हो गया।",
-                    "ta": f"{result['doctor']} உடன் {result['date']} {result['time']}க்கு பதிவு செய்யப்பட்டது.",
-                }.get(language, "Booked.")
-            else:
-                alts = result.get("alternatives", [])
-                msg = result.get("message") or "Could not book."
-                if result.get("error") == "conflict":
-                    msg = "That slot is already booked."
-                text = msg + (f" Try: {', '.join(alts)}" if alts else "")
+            result, text = await self._mock_book(tools, user_text, language)
 
         return {
             "text": text,
@@ -237,3 +252,71 @@ class VoiceAgent:
             "tool_calls": [{"name": "mock", "result": result}],
             "pending_context": {},
         }
+
+    async def _mock_book(
+        self, tools: AppointmentTools, user_text: str, language: str
+    ) -> tuple[dict, str]:
+        """Book first available slot when time not specified (avoids repeat 10:30 conflict)."""
+        import re
+
+        specialty = _detect_specialty(user_text)
+        slot_date = _detect_date(user_text)
+        book_args: dict[str, str] = {"specialty": specialty, "date": slot_date}
+
+        parsed_time = parse_time_slot(user_text)
+        if not parsed_time:
+            m = re.search(
+                r"(\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{1,2}:\d{2})",
+                user_text,
+                re.IGNORECASE,
+            )
+            if m:
+                parsed_time = parse_time_slot(m.group(1))
+
+        if parsed_time:
+            from scheduler.slot_utils import format_slot_display
+
+            book_args["time"] = format_slot_display(parsed_time)
+            result = await tools.execute("book_appointment", book_args)
+            if result.get("success"):
+                return result, self._mock_book_reply(result, language)
+            for slot_label in result.get("alternatives", []):
+                result = await tools.execute(
+                    "book_appointment", {**book_args, "time": slot_label}
+                )
+                if result.get("success"):
+                    return result, self._mock_book_reply(result, language)
+            return result, self._mock_book_reply(result, language)
+
+        avail = await tools.execute(
+            "check_availability", {"specialty": specialty, "date": slot_date}
+        )
+        slots = avail.get("available_slots", [])
+        if not slots:
+            return avail, _format_reply("no_slots", language)
+
+        result: dict = {"success": False}
+        for slot_label in slots:
+            result = await tools.execute(
+                "book_appointment",
+                {**book_args, "time": slot_label},
+            )
+            if result.get("success"):
+                return result, self._mock_book_reply(result, language)
+
+        return result, self._mock_book_reply(result, language)
+
+    def _mock_book_reply(self, result: dict, language: str) -> str:
+        if result.get("success"):
+            return _format_reply(
+                "book_ok",
+                language,
+                doctor=result.get("doctor", "Doctor"),
+                date=result.get("date", ""),
+                time=result.get("time", ""),
+            )
+        alts = ", ".join(result.get("alternatives", []))
+        msg = _format_reply("conflict", language)
+        if alts:
+            msg += _format_reply("try_slots", language, slots=alts)
+        return msg
