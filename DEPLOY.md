@@ -40,9 +40,26 @@ Create the empty repo first on https://github.com/new (name: `2care-voice-ai-age
 | Field | Value |
 |-------|--------|
 | Runtime | Python 3 |
+| **Python version** | `3.12.0` (Dashboard → Environment → `PYTHON_VERSION`) — **do not use 3.14** |
+| Root Directory | *(leave empty — repo root must contain `backend/`, `run.py`)* |
 | Build Command | `pip install -r requirements.txt` |
-| Start Command | `uvicorn backend.main:app --host 0.0.0.0 --port $PORT` |
+| **Start Command** | `uvicorn backend.main:app --host 0.0.0.0 --port $PORT` |
 | Health Check Path | `/health` |
+
+> **If you see `ModuleNotFoundError: No module named 'backend'`**  
+> Your Start Command is wrong or Python path is broken. Use the **uvicorn** command above (not `python run.py` unless you pulled the latest `run.py` fix). Then **Manual Deploy → Clear build cache & deploy**.
+
+### Render fix checklist (failed deploy)
+
+| Step | Action |
+|------|--------|
+| 1 | Render → your service → **Settings** → **Start Command** = `uvicorn backend.main:app --host 0.0.0.0 --port $PORT` |
+| 2 | **Environment** → add `PYTHON_VERSION` = `3.12.0` |
+| 3 | **Environment** → add `MOCK_AI` = `true` |
+| 4 | **Environment** → add `RENDER` = `true` (optional) |
+| 5 | Push latest code from GitHub (see section 1) |
+| 6 | **Manual Deploy** → **Clear build cache & deploy** |
+| 7 | Open `/health` — should return `{"status":"running",...}` |
 
 5. Environment variables:
 
